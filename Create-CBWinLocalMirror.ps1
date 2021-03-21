@@ -9,13 +9,13 @@
   .DESCRIPTION
   Configures the Carbon Black Local Mirror server for Windows.
 
-  THE SCRIPT IS PROVIDED "AS IS", USE IS AT YOUR OWN RISK, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  THIS SCRIPT IS PROVIDED "AS IS", USE IS AT YOUR OWN RISK, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
   AUTHORS/CREATORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SCRIPT OR THE USE OR OTHER DEALINGS IN THE
-  SCRIPT
+  OUT OF OR IN CONNECTION WITH THIS SCRIPT OR THE USE OR OTHER DEALINGS IN THIS
+  SCRIPT.
 
   .PARAMETER CBUpdatesURL
   Specifies the Carbon Black external URL from which the Carbon Black Local Mirror server receives the updates.
@@ -54,21 +54,21 @@
   PS> .\Create-CBWinLocalMirror.ps1
 
   .EXAMPLE
-  PS> .\Create-CBWinLocalMirror.ps1 -CBUpdatesURL updates2.cdc.carbonblack.io -CBUpdatesFolderName CB_SignatureUpdates -CBUpdatesScheduledTaskName CB_SignatureUpdates -CBUpdatesWebSiteName CB_SignatureUpdates -CBZipFile cbdefense_mirror_win_x64_v3.0.zip -CBUseSSL $False -HostNameFQDN cbmr01.lab.local -InstallIIS $True
+  PS> .\Create-CBWinLocalMirror.ps1 -CBUpdatesURL updates2.cdc.carbonblack.io -CBUpdatesFolderName CB_SignatureUpdates -CBUpdatesScheduledTaskName CB_SignatureUpdates -CBUpdatesIntervalMinutes 60 -CBUseSSL $False -CBUpdatesWebSiteName CB_SignatureUpdates -CBZipFile cbdefense_mirror_win_x64_v3.0.zip -HostNameFQDN domain.lab.local -InstallIIS $True
 #>
 
 param (
     [Parameter(Mandatory=$true)]
-    [bool]$AcceptEULA = $False,
-    [string]$CBUpdatesURL = "updates2.cdc.carbonblack.io",
-    [string]$CBUpdatesFolderName = "CB_SignatureUpdates",
-    [string]$CBUpdatesScheduledTaskName = "CB_SignatureUpdates",
-    [int]$CBUpdatesIntervalMinutes = 60,
-    [bool]$CBUseSSL = $False,
-    [string]$CBUpdatesWebSiteName = "CB_SignatureUpdates",
-    [string]$CBZipFile = "cbdefense_mirror_win_x64_v3.0.zip",
-    [string]$HostNameFQDN = "cbmr01.lab.local",
-    [bool]$InstallIIS = $True
+    [bool]$AcceptEULA,
+    [string]$CBUpdatesURL,
+    [string]$CBUpdatesFolderName,
+    [string]$CBUpdatesScheduledTaskName,
+    [int]$CBUpdatesIntervalMinutes,
+    [bool]$CBUseSSL,
+    [string]$CBUpdatesWebSiteName,
+    [string]$CBZipFile,
+    [string]$HostNameFQDN,
+    [bool]$InstallIIS
 )
 
 
@@ -125,6 +125,7 @@ Try {
     $out = (Test-NetConnection -Port 80 -ComputerName $CBUpdatesURL -WarningAction SilentlyContinue).TcpTestSucceeded
 } Catch {
     Write-Error "An error occurred: $Error"
+	Break
 }
 
 If ($out -eq $False) {
@@ -145,12 +146,14 @@ Try {
     $out = (Get-WindowsFeature -Name Web-Common-Http).InstallState
 } Catch {
     Write-Error "An error occurred: $Error"
+	Break
 }
 
 Try {
     $out2 = (Get-WindowsFeature -Name Web-Static-Content).InstallState
 } Catch {
     Write-Error "An error occurred: $Error"
+	Break
 }
 
 If ($out -ne "Installed" -or $out2 -ne "Installed") {
@@ -162,12 +165,14 @@ If ($out -ne "Installed" -or $out2 -ne "Installed") {
             $out = Add-WindowsFeature -Name Web-Dir-Browsing -IncludeAllSubFeature -IncludeManagementTools
         } Catch {
             Write-Error "An error occurred: $Error"
+			Break
         }
 
         Try {
             $out = Add-WindowsFeature -Name Web-Static-Content -IncludeAllSubFeature -IncludeManagementTools
         } Catch {
             Write-Error "An error occurred: $Error"
+			Break
         }
 
         Write-Host "[OK]" -ForegroundColor Green
@@ -193,6 +198,7 @@ If (!(Test-Path -Path "$varIISFolder\$varCBUpdatesFolderName")) {
         $out = New-Item -Path "$varIISFolder" -Name "$varCBUpdatesFolderName" -ItemType "Directory" -Force
     } Catch {
         Write-Error "An error occurred: $Error"
+		Break
     }
     
     Write-Host "OK]" -ForegroundColor Green
@@ -214,6 +220,7 @@ Try {
     Remove-Item -Path "$varTempFolder" -Recurse -Force
 } Catch {
     Write-Error "An error occurred: $Error"
+	Break
 }
 
 Write-Host "[OK]" -ForegroundColor Green
@@ -232,6 +239,7 @@ Try {
     $out = (Get-Content -Path "$varIISFolder\$varCBUpdatesFolderName\do_update_ssl.bat") -replace "upd.exe","$varIISFolder\$varCBUpdatesFolderName\upd.exe" | Set-Content -Path "$varIISFolder\$varCBUpdatesFolderName\do_update_ssl.bat" -Force
 } Catch {
     Write-Error "An error occurred: $Error"
+	Break
 }
 
 Write-Host "[OK]" -ForegroundColor Green
@@ -263,12 +271,14 @@ If ($varCBUseSSL -eq $False) {
         $varTaskAction = New-ScheduledTaskAction -Execute "$varIISFolder\$varCBUpdatesFolderName\do_update.bat" -WorkingDirectory "$varIISFolder\$varCBUpdatesFolderName"
     } Catch {
         Write-Error "An error occurred: $Error"
+		Break
     }
 } Else {
     Try {
         $varTaskAction = New-ScheduledTaskAction -Execute "$varIISFolder\$varCBUpdatesFolderName\do_update_ssl.bat" -WorkingDirectory "$varIISFolder\$varCBUpdatesFolderName"
     } Catch {
         Write-Error "An error occurred: $Error"
+		Break
     }
 }
 
@@ -276,9 +286,10 @@ Try {
     $varTaskTrigger = New-ScheduledTaskTrigger -Once -At 12pm  -RepetitionInterval (New-TimeSpan -Minutes $varCBUpdatesIntervalMinutes) #-RepetitionDuration ([timespan]::MaxValue)
     $varTaskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable
     $varTask = New-ScheduledTask -Action $varTaskAction -Trigger $varTaskTrigger -Settings $varTaskSettings
-    $out = Register-ScheduledTask -TaskName "$varCBUpdatesScheduledTaskName" -inputobject $varTask
+    $out = Register-ScheduledTask -TaskName "$varCBUpdatesScheduledTaskName" -InputObject $varTask -User "NT AUTHORITY\SYSTEM"
 } Catch {
     Write-Error "An error occurred: $Error"
+	Break
 }
 
 Write-Host "[OK]" -ForegroundColor Green
@@ -298,6 +309,7 @@ Try {
     $out = & iisreset
 } Catch {
     Write-Error "An error occurred: $Error"
+	Break
 }
 
 Write-Host "[OK - FINISHED]" -ForegroundColor Green
